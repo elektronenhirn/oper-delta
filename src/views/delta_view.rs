@@ -1,5 +1,5 @@
 use crate::model::{RepoDeltas, Delta};
-use crate::styles::{GREEN, RED, WHITE, YELLOW};
+use crate::styles::{GREEN, RED, WHITE, YELLOW, BLUE};
 use crate::views::ListView;
 use cursive::theme::ColorStyle;
 use cursive::view::ViewWrapper;
@@ -41,7 +41,8 @@ impl DeltaView {
             Delta::ConsolidatedByMergeCommit => *GREEN,
             Delta::ConsolidatedByEqualContent => *GREEN,
             Delta::NotConsolidatedButFastForwardable => *YELLOW,
-            Delta::NotConsolidated => *RED
+            Delta::NotConsolidated => *RED,
+            Delta::BranchNotFound => *BLUE,
         }
     }
 
@@ -52,6 +53,7 @@ impl DeltaView {
             Delta::ConsolidatedByEqualContent => "HEAD consolidated: content same as HEAD (however history differs)",
             Delta::NotConsolidatedButFastForwardable => "HEAD not consolidated: can be fast forwarded to HEAD",
             Delta::NotConsolidated => "HEAD not consolidated: and not fast forwardable",
+            Delta::BranchNotFound => "branch not found",
         }.to_string()
     }
 

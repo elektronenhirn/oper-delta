@@ -26,6 +26,7 @@ pub enum Delta {
     ConsolidatedByEqualContent,
     NotConsolidatedButFastForwardable,
     NotConsolidated,
+    BranchNotFound
 }
 
 impl fmt::Display for Delta {
@@ -40,6 +41,7 @@ pub struct Filter {
     pub include_consolidated_by_equal_content: bool,
     pub include_non_consolidated: bool,
     pub include_non_consolidated_but_ff_able: bool,
+    pub include_branch_not_found: bool,
 }
 
 pub fn create_model(
@@ -94,7 +96,7 @@ pub fn create_model(
             let deltas = branches
                 .iter()
                 .filter_map(|branch_name| {
-                    match &git_repo.find_branch(branch_name, BranchType::Remote) {
+                    let delta = match &git_repo.find_branch(branch_name, BranchType::Remote) {
                         Ok(branch) => {
                             let mut delta = Delta::NotConsolidated;
                             if consolidated_by_same_commit(&git_repo, branch) {
@@ -106,40 +108,45 @@ pub fn create_model(
                             } else if fast_forwardable(&git_repo, branch) {
                                 delta = Delta::NotConsolidatedButFastForwardable;
                             }
+                            delta
+                        },
+                        Err(_err) => Delta::BranchNotFound
+                    };
 
-                            //apply filter from the command line
-                            if !filter.include_consolidated_by_same_commit && delta == Delta::ConsolidatedBySameCommit {
-                                return None;
-                            } else if !filter.include_consolidated_by_merge_commit && delta == Delta::ConsolidatedByMergeCommit {
-                                return None;
-                            } else if !filter.include_consolidated_by_equal_content && delta == Delta::ConsolidatedByEqualContent {
-                                return None;
-                            } else if !filter.include_non_consolidated_but_ff_able && delta == Delta::NotConsolidatedButFastForwardable {
-                                return None;
-                            } else if !filter.include_non_consolidated && delta == Delta::NotConsolidated {
-                                return None;
-                            }
-
-                            Some(BranchDelta {
-                                branch_name: String::from(*branch_name),
-                                delta,
-                            })
-                        }
-                        Err(_err) => None,
-                    }
+                    Some(BranchDelta {
+                        branch_name: String::from(*branch_name),
+                        delta,
+                    })
                 })
                 .collect::<Vec<_>>();
 
-            progress_bar.set_message("Idle");
+                progress_bar.set_message("Idle");
 
-            if deltas.is_empty() {
-                None
-            } else {
-                Some(RepoDeltas {
-                    repo: repo.clone(),
-                    deltas,
-                })
-            }
+                //apply filter from the command line
+                let include_repo = if filter.include_consolidated_by_same_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedBySameCommit) {
+                    true
+                } else if filter.include_consolidated_by_merge_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByMergeCommit) {
+                    true
+                } else if filter.include_consolidated_by_equal_content && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByEqualContent) {
+                    true
+                } else if filter.include_non_consolidated_but_ff_able && deltas.iter().any(|x| x.delta == Delta::NotConsolidatedButFastForwardable) {
+                    true
+                } else if filter.include_non_consolidated && deltas.iter().any(|x| x.delta == Delta::NotConsolidated) {
+                    true
+                } else if filter.include_branch_not_found && deltas.iter().all(|x| x.delta == Delta::BranchNotFound) {
+                    true
+                } else {
+                    false
+                };
+
+                if include_repo {
+                    Some(RepoDeltas {
+                        repo: repo.clone(),
+                        deltas,
+                    })
+                } else {
+                    None
+                }
         })
         .progress_with(overall_progress)
         .filter_map(|x| x)

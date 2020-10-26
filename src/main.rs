@@ -78,6 +78,11 @@ fn main() -> Result<(), String> {
                 .long("hide-non-consolidated-but-ff-able")
                 .help("hide repositories where the HEAD has been not consolidated into given <branch> but can be fastforwarded on <branch>"),
         )
+        .arg(
+            Arg::with_name("hide-branch-not-found")
+                .long("hide-branch-not-found")
+                .help("hide repositories where the given <branch> couldn't been found"),
+        )
         .get_matches();
 
     let branches = matches.values_of("branch").unwrap().collect::<Vec<_>>();
@@ -88,6 +93,7 @@ fn main() -> Result<(), String> {
         include_consolidated_by_equal_content: !matches.is_present("hide-consolidated-by-equal-content"),
         include_non_consolidated: !matches.is_present("hide-non-consolidated"),
         include_non_consolidated_but_ff_able: !matches.is_present("hide-non-consolidated-but-ff-able"),
+        include_branch_not_found: !matches.is_present("hide-branch-not-found"),
     };
 
     do_main(branches, cwd, filter).or_else(|e| Err(e.description().into()))
