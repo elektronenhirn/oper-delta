@@ -1,5 +1,5 @@
 use crate::model::RepoDeltas;
-use crate::styles::{RED};
+use crate::styles::{WHITE};
 use crate::views::table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, Color, ColorStyle};
 use cursive::traits::*;
@@ -70,7 +70,7 @@ impl MainView {
 
     fn new_table(model: Vec<RepoDeltas>) -> TableView<RepoDeltas, Column> {
         let mut table =
-            TableView::<RepoDeltas, Column>::new().column(Column::Repo, "Repo", |c| c.color(*RED));
+            TableView::<RepoDeltas, Column>::new().column(Column::Repo, "Repo", |c| c.color(*WHITE));
         table.set_items(model);
         table.set_selected_row(0);
 
