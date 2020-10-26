@@ -34,10 +34,18 @@ impl fmt::Display for Delta {
     }
 }
 
+pub struct Filter {
+    pub include_consolidated_by_same_commit: bool,
+    pub include_consolidated_by_merge_commit: bool,
+    pub include_consolidated_by_equal_content: bool,
+    pub include_non_consolidated: bool,
+    pub include_non_consolidated_but_ff_able: bool,
+}
+
 pub fn create_model(
     repos: Vec<Arc<Repo>>,
     branches: Vec<&str>,
-    ignore_consolidated: bool,
+    filter: Filter,
 ) -> Result<Vec<RepoDeltas>, git2::Error> {
     let progress = MultiProgress::new();
     let progress_bars = (0..rayon::current_num_threads())
@@ -83,11 +91,9 @@ pub fn create_model(
                 .map_err(|e| progress_error("Failed to open", &e))
                 .ok()?;
 
-            progress_bar.set_message("Idle");
-
             let deltas = branches
                 .iter()
-                .filter_map(move |branch_name| {
+                .filter_map(|branch_name| {
                     match &git_repo.find_branch(branch_name, BranchType::Remote) {
                         Ok(branch) => {
                             let mut delta = Delta::NotConsolidated;
@@ -100,6 +106,20 @@ pub fn create_model(
                             } else if fast_forwardable(&git_repo, branch) {
                                 delta = Delta::NotConsolidatedButFastForwardable;
                             }
+
+                            //apply filter from the command line
+                            if !filter.include_consolidated_by_same_commit && delta == Delta::ConsolidatedBySameCommit {
+                                return None;
+                            } else if !filter.include_consolidated_by_merge_commit && delta == Delta::ConsolidatedByMergeCommit {
+                                return None;
+                            } else if !filter.include_consolidated_by_equal_content && delta == Delta::ConsolidatedByEqualContent {
+                                return None;
+                            } else if !filter.include_non_consolidated_but_ff_able && delta == Delta::NotConsolidatedButFastForwardable {
+                                return None;
+                            } else if !filter.include_non_consolidated && delta == Delta::NotConsolidated {
+                                return None;
+                            }
+
                             Some(BranchDelta {
                                 branch_name: String::from(*branch_name),
                                 delta,
@@ -110,19 +130,16 @@ pub fn create_model(
                 })
                 .collect::<Vec<_>>();
 
-            if ignore_consolidated {
-                if !deltas.iter().any(|delta| {
-                    delta.delta == Delta::NotConsolidatedButFastForwardable
-                        || delta.delta == Delta::NotConsolidated
-                }) {
-                    return None;
-                }
-            }
+            progress_bar.set_message("Idle");
 
-            Some(RepoDeltas {
-                repo: repo.clone(),
-                deltas,
-            })
+            if deltas.is_empty() {
+                None
+            } else {
+                Some(RepoDeltas {
+                    repo: repo.clone(),
+                    deltas,
+                })
+            }
         })
         .progress_with(overall_progress)
         .filter_map(|x| x)

@@ -33,12 +33,13 @@ impl TableViewItem<Column> for RepoDeltas {
 pub struct MainView {
     layout: LinearLayout,
     status_bar_model: Rc<RefCell<String>>,
-    number_of_repos: usize,
+    number_of_filtered_repos: usize,
+    number_of_total_repos: usize,
 }
 
 impl MainView {
-    pub fn from(model: Vec<RepoDeltas>) -> Self {
-        let number_of_repos = model.len();
+    pub fn from(model: Vec<RepoDeltas>, number_of_total_repos: usize) -> Self {
+        let number_of_filtered_repos = model.len();
         let table = Self::new_table(model);
         let status_bar_model = Rc::new(RefCell::new(String::from("")));
         let status_bar = Self::new_status_bar(status_bar_model.clone());
@@ -48,7 +49,8 @@ impl MainView {
                 .child(table.with_id("table").full_screen())
                 .child(status_bar),
             status_bar_model,
-            number_of_repos,
+            number_of_filtered_repos,
+            number_of_total_repos
         }
     }
 
@@ -93,8 +95,8 @@ impl MainView {
             .with_required_size(|_model, req| cursive::Vec2::new(req.x, 1))
     }
 
-    pub fn update_status_bar(self: &mut Self, index: usize, _size: usize, _entry: &RepoDeltas) {
-        (*self.status_bar_model).replace(format!("Repo {} of {}", index + 1, self.number_of_repos));
+    pub fn update_status_bar(self: &mut Self, index: i32) {
+        (*self.status_bar_model).replace(format!("Repo {} of {} (unfiltered: {})", index + 1, self.number_of_filtered_repos, self.number_of_total_repos));
     }
 
     pub fn show_error(self: &mut Self, context: &str, error: &std::io::Error) {
