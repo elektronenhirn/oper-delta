@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "oper-delta"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.19 (registry+https://github.com/rust-lang/crates.io-index)",
