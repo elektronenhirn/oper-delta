@@ -97,7 +97,7 @@ pub fn create_model(
                     match &git_repo.find_branch(branch_name, BranchType::Remote) {
                         Ok(branch) => {
                             let mut delta = Delta::NotConsolidated;
-                            if branch.is_head() {
+                            if consolidated_by_same_commit(&git_repo, branch) {
                                 delta = Delta::ConsolidatedBySameCommit;
                             } else if consolidated_by_merge(&git_repo, branch) {
                                 delta = Delta::ConsolidatedByMergeCommit;
@@ -148,6 +148,17 @@ pub fn create_model(
     Ok(repo_deltas)
 }
 
+fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool{
+    let head_as_obj = git_repo
+        .head()
+        .expect("No HEAD for git repo")
+        .peel(git2::ObjectType::Commit)
+        .unwrap();
+
+    let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
+    head_as_obj.id() == branch_as_obj.id()
+}
+
 fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
     //walk down the history of "branch" and probe for a commit which has HEAD as a parent
     let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
@@ -160,7 +171,7 @@ fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
     let head_as_obj = git_repo
         .head()
         .expect("No HEAD for git repo")
-        .peel(git2::ObjectType::Tree)
+        .peel(git2::ObjectType::Commit)
         .unwrap();
 
     for commit_id in revwalk {
