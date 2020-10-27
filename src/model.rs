@@ -26,7 +26,7 @@ pub enum Delta {
     ConsolidatedByEqualContent,
     NotConsolidatedButFastForwardable,
     NotConsolidated,
-    BranchNotFound
+    BranchNotFound,
 }
 
 impl fmt::Display for Delta {
@@ -89,64 +89,16 @@ pub fn create_model(
                 progress_bar.set_message("Idle");
             };
 
-            let git_repo = Repository::open(&repo.abs_path)
-                .map_err(|e| progress_error("Failed to open", &e))
-                .ok()?;
-
-            let deltas = branches
-                .iter()
-                .filter_map(|branch_name| {
-                    let delta = match &git_repo.find_branch(branch_name, BranchType::Remote) {
-                        Ok(branch) => {
-                            let mut delta = Delta::NotConsolidated;
-                            if consolidated_by_same_commit(&git_repo, branch) {
-                                delta = Delta::ConsolidatedBySameCommit;
-                            } else if consolidated_by_merge(&git_repo, branch) {
-                                delta = Delta::ConsolidatedByMergeCommit;
-                            } else if consolidated_by_equal_content(&git_repo, branch) {
-                                delta = Delta::ConsolidatedByEqualContent;
-                            } else if fast_forwardable(&git_repo, branch) {
-                                delta = Delta::NotConsolidatedButFastForwardable;
-                            }
-                            delta
-                        },
-                        Err(_err) => Delta::BranchNotFound
-                    };
-
-                    Some(BranchDelta {
-                        branch_name: String::from(*branch_name),
-                        delta,
-                    })
-                })
-                .collect::<Vec<_>>();
-
-                progress_bar.set_message("Idle");
-
-                //apply filter from the command line
-                let include_repo = if filter.include_consolidated_by_same_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedBySameCommit) {
-                    true
-                } else if filter.include_consolidated_by_merge_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByMergeCommit) {
-                    true
-                } else if filter.include_consolidated_by_equal_content && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByEqualContent) {
-                    true
-                } else if filter.include_non_consolidated_but_ff_able && deltas.iter().any(|x| x.delta == Delta::NotConsolidatedButFastForwardable) {
-                    true
-                } else if filter.include_non_consolidated && deltas.iter().any(|x| x.delta == Delta::NotConsolidated) {
-                    true
-                } else if filter.include_branch_not_found && deltas.iter().all(|x| x.delta == Delta::BranchNotFound) {
-                    true
-                } else {
-                    false
-                };
-
-                if include_repo {
-                    Some(RepoDeltas {
-                        repo: repo.clone(),
-                        deltas,
-                    })
-                } else {
+            calc_repo_deltas(repo, &branches, &filter).map_or_else(
+                |e| {
+                    progress_error("Failed to open", &e);
                     None
-                }
+                },
+                |x| {
+                    progress_bar.set_message("Idle");
+                    x
+                },
+            )
         })
         .progress_with(overall_progress)
         .filter_map(|x| x)
@@ -155,7 +107,88 @@ pub fn create_model(
     Ok(repo_deltas)
 }
 
-fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool{
+fn calc_repo_deltas(
+    repo: &std::sync::Arc<Repo>,
+    branches: &Vec<&str>,
+    filter: &Filter,
+) -> Result<Option<RepoDeltas>, git2::Error> {
+    let git_repo = Repository::open(&repo.abs_path)?;
+
+    let deltas = branches
+        .iter()
+        .filter_map(|branch_name| {
+            let delta = match &git_repo.find_branch(branch_name, BranchType::Remote) {
+                Ok(branch) => {
+                    let mut delta = Delta::NotConsolidated;
+                    if consolidated_by_same_commit(&git_repo, branch) {
+                        delta = Delta::ConsolidatedBySameCommit;
+                    } else if consolidated_by_merge(&git_repo, branch) {
+                        delta = Delta::ConsolidatedByMergeCommit;
+                    } else if consolidated_by_equal_content(&git_repo, branch) {
+                        delta = Delta::ConsolidatedByEqualContent;
+                    } else if fast_forwardable(&git_repo, branch) {
+                        delta = Delta::NotConsolidatedButFastForwardable;
+                    }
+                    delta
+                }
+                Err(_err) => Delta::BranchNotFound,
+            };
+
+            Some(BranchDelta {
+                branch_name: String::from(*branch_name),
+                delta,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    //apply filter from the command line
+    let include_repo = if filter.include_consolidated_by_same_commit
+        && deltas
+            .iter()
+            .any(|x| x.delta == Delta::ConsolidatedBySameCommit)
+    {
+        true
+    } else if filter.include_consolidated_by_merge_commit
+        && deltas
+            .iter()
+            .any(|x| x.delta == Delta::ConsolidatedByMergeCommit)
+    {
+        true
+    } else if filter.include_consolidated_by_equal_content
+        && deltas
+            .iter()
+            .any(|x| x.delta == Delta::ConsolidatedByEqualContent)
+    {
+        true
+    } else if filter.include_non_consolidated_but_ff_able
+        && deltas
+            .iter()
+            .any(|x| x.delta == Delta::NotConsolidatedButFastForwardable)
+    {
+        true
+    } else if filter.include_non_consolidated
+        && deltas.iter().any(|x| x.delta == Delta::NotConsolidated)
+    {
+        true
+    } else if filter.include_branch_not_found
+        && deltas.iter().all(|x| x.delta == Delta::BranchNotFound)
+    {
+        true
+    } else {
+        false
+    };
+
+    if include_repo {
+        Ok(Some(RepoDeltas {
+            repo: repo.clone(),
+            deltas,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool {
     let head_as_obj = git_repo
         .head()
         .expect("No HEAD for git repo")
@@ -171,7 +204,9 @@ fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
     let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
     let mut revwalk = git_repo.revwalk().expect("Failed to create revwalk");
 
-    revwalk.push(branch_as_obj.id()).expect("branch not found in revwalk");
+    revwalk
+        .push(branch_as_obj.id())
+        .expect("branch not found in revwalk");
     revwalk.simplify_first_parent();
     revwalk.set_sorting(git2::Sort::TIME);
 

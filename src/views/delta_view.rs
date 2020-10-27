@@ -1,5 +1,5 @@
-use crate::model::{RepoDeltas, Delta};
-use crate::styles::{GREEN, RED, WHITE, YELLOW, BLUE};
+use crate::model::{Delta, RepoDeltas};
+use crate::styles::{BLUE, GREEN, RED, WHITE, YELLOW};
 use crate::views::ListView;
 use cursive::theme::ColorStyle;
 use cursive::view::ViewWrapper;
@@ -48,15 +48,23 @@ impl DeltaView {
 
     fn delta_to_string(delta: &Delta) -> String {
         match delta {
-            Delta::ConsolidatedBySameCommit => "HEAD consolidated: points to the same commit as HEAD",
-            Delta::ConsolidatedByMergeCommit => "HEAD consolidated: contains merge commit from HEAD",
-            Delta::ConsolidatedByEqualContent => "HEAD consolidated: content same as HEAD (however history differs)",
-            Delta::NotConsolidatedButFastForwardable => "HEAD not consolidated: can be fast forwarded to HEAD",
+            Delta::ConsolidatedBySameCommit => {
+                "HEAD consolidated: points to the same commit as HEAD"
+            }
+            Delta::ConsolidatedByMergeCommit => {
+                "HEAD consolidated: contains merge commit from HEAD"
+            }
+            Delta::ConsolidatedByEqualContent => {
+                "HEAD consolidated: content same as HEAD (however history differs)"
+            }
+            Delta::NotConsolidatedButFastForwardable => {
+                "HEAD not consolidated: can be fast forwarded to HEAD"
+            }
             Delta::NotConsolidated => "HEAD not consolidated: and not fast forwardable",
             Delta::BranchNotFound => "branch not found",
-        }.to_string()
+        }
+        .to_string()
     }
-
 }
 
 impl ViewWrapper for DeltaView {

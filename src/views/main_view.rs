@@ -1,5 +1,5 @@
 use crate::model::RepoDeltas;
-use crate::styles::{WHITE};
+use crate::styles::WHITE;
 use crate::views::table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, Color, ColorStyle};
 use cursive::traits::*;
@@ -50,7 +50,7 @@ impl MainView {
                 .child(status_bar),
             status_bar_model,
             number_of_filtered_repos,
-            number_of_total_repos
+            number_of_total_repos,
         }
     }
 
@@ -71,8 +71,8 @@ impl MainView {
     }
 
     fn new_table(model: Vec<RepoDeltas>) -> TableView<RepoDeltas, Column> {
-        let mut table =
-            TableView::<RepoDeltas, Column>::new().column(Column::Repo, "Repo", |c| c.color(*WHITE));
+        let mut table = TableView::<RepoDeltas, Column>::new()
+            .column(Column::Repo, "Repo", |c| c.color(*WHITE));
         table.set_items(model);
         table.set_selected_row(0);
 
@@ -96,7 +96,12 @@ impl MainView {
     }
 
     pub fn update_status_bar(self: &mut Self, index: i32) {
-        (*self.status_bar_model).replace(format!("Repo {} of {} (unfiltered: {})", index + 1, self.number_of_filtered_repos, self.number_of_total_repos));
+        (*self.status_bar_model).replace(format!(
+            "Repo {} of {} (unfiltered: {})",
+            index + 1,
+            self.number_of_filtered_repos,
+            self.number_of_total_repos
+        ));
     }
 
     pub fn show_error(self: &mut Self, context: &str, error: &std::io::Error) {

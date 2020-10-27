@@ -17,10 +17,9 @@ mod utils;
 mod views;
 
 use clap::{App, Arg};
-use model::{create_model, Repo, Filter};
+use model::{create_model, Filter, Repo};
 use std::convert::Into;
 use std::env;
-use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader};
@@ -88,15 +87,19 @@ fn main() -> Result<(), String> {
     let branches = matches.values_of("branch").unwrap().collect::<Vec<_>>();
     let cwd = Path::new(matches.value_of("cwd").unwrap());
     let filter = Filter {
-        include_consolidated_by_same_commit: !matches.is_present("hide-consolidated-by-same-commit"),
-        include_consolidated_by_merge_commit: !matches.is_present("hide-consolidated-by-merge-commit"),
-        include_consolidated_by_equal_content: !matches.is_present("hide-consolidated-by-equal-content"),
+        include_consolidated_by_same_commit: !matches
+            .is_present("hide-consolidated-by-same-commit"),
+        include_consolidated_by_merge_commit: !matches
+            .is_present("hide-consolidated-by-merge-commit"),
+        include_consolidated_by_equal_content: !matches
+            .is_present("hide-consolidated-by-equal-content"),
         include_non_consolidated: !matches.is_present("hide-non-consolidated"),
-        include_non_consolidated_but_ff_able: !matches.is_present("hide-non-consolidated-but-ff-able"),
+        include_non_consolidated_but_ff_able: !matches
+            .is_present("hide-non-consolidated-but-ff-able"),
         include_branch_not_found: !matches.is_present("hide-branch-not-found"),
     };
 
-    do_main(branches, cwd, filter).or_else(|e| Err(e.description().into()))
+    do_main(branches, cwd, filter).or_else(|e| Err(e.to_string().into()))
 }
 
 fn do_main(branches: Vec<&str>, cwd: &Path, filter: Filter) -> Result<(), io::Error> {
@@ -113,7 +116,7 @@ fn do_main(branches: Vec<&str>, cwd: &Path, filter: Filter) -> Result<(), io::Er
     let nr_of_total_repos = repos.len();
 
     let diff = create_model(repos, branches, filter)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.description()))?;
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
     ui::show(diff, &config, nr_of_total_repos);
 
