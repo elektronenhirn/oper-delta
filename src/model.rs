@@ -26,7 +26,7 @@ pub enum Delta {
     ConsolidatedByEqualContent,
     NotConsolidatedButFastForwardable,
     NotConsolidated,
-    BranchNotFound
+    BranchNotFound,
 }
 
 impl fmt::Display for Delta {
@@ -109,8 +109,8 @@ pub fn create_model(
                                 delta = Delta::NotConsolidatedButFastForwardable;
                             }
                             delta
-                        },
-                        Err(_err) => Delta::BranchNotFound
+                        }
+                        Err(_err) => Delta::BranchNotFound,
                     };
 
                     Some(BranchDelta {
@@ -120,33 +120,53 @@ pub fn create_model(
                 })
                 .collect::<Vec<_>>();
 
-                progress_bar.set_message("Idle");
+            progress_bar.set_message("Idle");
 
-                //apply filter from the command line
-                let include_repo = if filter.include_consolidated_by_same_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedBySameCommit) {
-                    true
-                } else if filter.include_consolidated_by_merge_commit && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByMergeCommit) {
-                    true
-                } else if filter.include_consolidated_by_equal_content && deltas.iter().any(|x| x.delta == Delta::ConsolidatedByEqualContent) {
-                    true
-                } else if filter.include_non_consolidated_but_ff_able && deltas.iter().any(|x| x.delta == Delta::NotConsolidatedButFastForwardable) {
-                    true
-                } else if filter.include_non_consolidated && deltas.iter().any(|x| x.delta == Delta::NotConsolidated) {
-                    true
-                } else if filter.include_branch_not_found && deltas.iter().all(|x| x.delta == Delta::BranchNotFound) {
-                    true
-                } else {
-                    false
-                };
+            //apply filter from the command line
+            let include_repo = if filter.include_consolidated_by_same_commit
+                && deltas
+                    .iter()
+                    .any(|x| x.delta == Delta::ConsolidatedBySameCommit)
+            {
+                true
+            } else if filter.include_consolidated_by_merge_commit
+                && deltas
+                    .iter()
+                    .any(|x| x.delta == Delta::ConsolidatedByMergeCommit)
+            {
+                true
+            } else if filter.include_consolidated_by_equal_content
+                && deltas
+                    .iter()
+                    .any(|x| x.delta == Delta::ConsolidatedByEqualContent)
+            {
+                true
+            } else if filter.include_non_consolidated_but_ff_able
+                && deltas
+                    .iter()
+                    .any(|x| x.delta == Delta::NotConsolidatedButFastForwardable)
+            {
+                true
+            } else if filter.include_non_consolidated
+                && deltas.iter().any(|x| x.delta == Delta::NotConsolidated)
+            {
+                true
+            } else if filter.include_branch_not_found
+                && deltas.iter().all(|x| x.delta == Delta::BranchNotFound)
+            {
+                true
+            } else {
+                false
+            };
 
-                if include_repo {
-                    Some(RepoDeltas {
-                        repo: repo.clone(),
-                        deltas,
-                    })
-                } else {
-                    None
-                }
+            if include_repo {
+                Some(RepoDeltas {
+                    repo: repo.clone(),
+                    deltas,
+                })
+            } else {
+                None
+            }
         })
         .progress_with(overall_progress)
         .filter_map(|x| x)
@@ -155,7 +175,7 @@ pub fn create_model(
     Ok(repo_deltas)
 }
 
-fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool{
+fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool {
     let head_as_obj = git_repo
         .head()
         .expect("No HEAD for git repo")
@@ -171,7 +191,9 @@ fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
     let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
     let mut revwalk = git_repo.revwalk().expect("Failed to create revwalk");
 
-    revwalk.push(branch_as_obj.id()).expect("branch not found in revwalk");
+    revwalk
+        .push(branch_as_obj.id())
+        .expect("branch not found in revwalk");
     revwalk.simplify_first_parent();
     revwalk.set_sorting(git2::Sort::TIME);
 
