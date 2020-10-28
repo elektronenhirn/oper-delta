@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remote name="origin" fetch="https://github.com/elektronenhirn/" />
+  <default revision="main" remote="origin" />
+
+  <project path="lib/wheel"
+           name="oper-test-wheel.git" remote="origin" />
+
+  <project path="lib/frame"
+           name="oper-test-frame.git" remote="origin" />
+
+  <project path="bike"
+           name="oper-test-bike.git" remote="origin" />
+
+</manifest>
