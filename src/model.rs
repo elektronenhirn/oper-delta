@@ -117,16 +117,24 @@ fn calc_repo_deltas(
     let deltas = branches
         .iter()
         .filter_map(|branch_name| {
-            let delta = match &git_repo.find_branch(branch_name, BranchType::Remote) {
+            let git_repo_ref = &git_repo;
+            let local_branch = git_repo_ref.find_branch(branch_name, BranchType::Local);
+            let branch = if local_branch.is_err() {
+                git_repo_ref.find_branch(branch_name, BranchType::Remote)
+            } else {
+                local_branch
+            };
+
+            let delta = match branch {
                 Ok(branch) => {
                     let mut delta = Delta::NotConsolidated;
-                    if consolidated_by_same_commit(&git_repo, branch) {
+                    if consolidated_by_same_commit(git_repo_ref, &branch) {
                         delta = Delta::ConsolidatedBySameCommit;
-                    } else if consolidated_by_merge(&git_repo, branch) {
+                    } else if consolidated_by_merge(git_repo_ref, &branch) {
                         delta = Delta::ConsolidatedByMergeCommit;
-                    } else if consolidated_by_equal_content(&git_repo, branch) {
+                    } else if consolidated_by_equal_content(git_repo_ref, &branch) {
                         delta = Delta::ConsolidatedByEqualContent;
-                    } else if fast_forwardable(&git_repo, branch) {
+                    } else if fast_forwardable(git_repo_ref, &branch) {
                         delta = Delta::NotConsolidatedButFastForwardable;
                     }
                     delta
