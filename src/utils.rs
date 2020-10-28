@@ -1,4 +1,4 @@
-use crate::model::RepoDeltas;
+use crate::model::RepoBranchDeltas;
 use std::env;
 use std::fs;
 use std::io;
@@ -53,7 +53,7 @@ pub fn find_repo_base_folder() -> Result<PathBuf, io::Error> {
 pub fn execute_on_repo(
     exec: &str,
     args: &str,
-    status: &RepoDeltas,
+    status: &RepoBranchDeltas,
 ) -> Result<std::process::Child, std::io::Error> {
     Command::new(exec)
         .current_dir(&status.repo.abs_path)

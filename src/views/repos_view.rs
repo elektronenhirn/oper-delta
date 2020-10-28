@@ -1,4 +1,4 @@
-use crate::model::RepoDeltas;
+use crate::model::RepoBranchDeltas;
 use crate::styles::WHITE;
 use crate::views::table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, Color, ColorStyle};
@@ -15,7 +15,7 @@ enum Column {
     Repo,
 }
 
-impl TableViewItem<Column> for RepoDeltas {
+impl TableViewItem<Column> for RepoBranchDeltas {
     fn to_column(&self, column: Column) -> String {
         match column {
             Column::Repo => self.repo.rel_path.clone(),
@@ -30,21 +30,21 @@ impl TableViewItem<Column> for RepoDeltas {
     }
 }
 
-pub struct MainView {
+pub struct ReposView {
     layout: LinearLayout,
     status_bar_model: Rc<RefCell<String>>,
     number_of_filtered_repos: usize,
     number_of_total_repos: usize,
 }
 
-impl MainView {
-    pub fn from(model: Vec<RepoDeltas>, number_of_total_repos: usize) -> Self {
+impl ReposView {
+    pub fn from(model: Vec<RepoBranchDeltas>, number_of_total_repos: usize) -> Self {
         let number_of_filtered_repos = model.len();
         let table = Self::new_table(model);
         let status_bar_model = Rc::new(RefCell::new(String::from("")));
         let status_bar = Self::new_status_bar(status_bar_model.clone());
 
-        MainView {
+        ReposView {
             layout: LinearLayout::vertical()
                 .child(table.with_id("table").full_screen())
                 .child(status_bar),
@@ -56,23 +56,27 @@ impl MainView {
 
     pub fn set_on_select<F>(&mut self, cb: F)
     where
-        F: Fn(&mut Cursive, usize, usize, &RepoDeltas) + 'static,
+        F: Fn(&mut Cursive, usize, usize, &RepoBranchDeltas) + 'static,
     {
-        let mut table: ViewRef<TableView<RepoDeltas, Column>> =
+        let mut table: ViewRef<TableView<RepoBranchDeltas, Column>> =
             self.layout.find_id("table").unwrap();
         table.set_on_select(move |siv: &mut Cursive, row: usize, index: usize| {
             let entry = siv
-                .call_on_id("table", move |table: &mut TableView<RepoDeltas, Column>| {
-                    table.borrow_item(index).unwrap().clone()
-                })
+                .call_on_id(
+                    "table",
+                    move |table: &mut TableView<RepoBranchDeltas, Column>| {
+                        table.borrow_item(index).unwrap().clone()
+                    },
+                )
                 .unwrap();
             cb(siv, row, index, &entry)
         });
     }
 
-    fn new_table(model: Vec<RepoDeltas>) -> TableView<RepoDeltas, Column> {
-        let mut table = TableView::<RepoDeltas, Column>::new()
-            .column(Column::Repo, "Repo", |c| c.color(*WHITE));
+    fn new_table(model: Vec<RepoBranchDeltas>) -> TableView<RepoBranchDeltas, Column> {
+        let mut table =
+            TableView::<RepoBranchDeltas, Column>::new()
+                .column(Column::Repo, "Repo", |c| c.color(*WHITE));
         table.set_items(model);
         table.set_selected_row(0);
 
@@ -109,7 +113,7 @@ impl MainView {
     }
 }
 
-impl ViewWrapper for MainView {
+impl ViewWrapper for ReposView {
     type V = LinearLayout;
 
     fn with_view<F, R>(&self, f: F) -> Option<R>

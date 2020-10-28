@@ -1,4 +1,4 @@
-use crate::model::{Delta, RepoDeltas};
+use crate::model::{Delta, RepoBranchDeltas};
 use crate::styles::{BLUE, GREEN, RED, WHITE, YELLOW};
 use crate::views::ListView;
 use cursive::theme::ColorStyle;
@@ -6,7 +6,7 @@ use cursive::view::ViewWrapper;
 
 pub struct DeltaView {
     list_view: ListView,
-    repo_deltas: Option<RepoDeltas>,
+    repo_deltas: Option<RepoBranchDeltas>,
 }
 
 impl DeltaView {
@@ -18,7 +18,7 @@ impl DeltaView {
     }
 
     #[rustfmt::skip]
-    pub fn set_repo_deltas(self: &mut Self, repo_deltas: &RepoDeltas) {
+    pub fn set_repo_deltas(self: &mut Self, repo_deltas: &RepoBranchDeltas) {
         self.repo_deltas = Some(repo_deltas.clone());
 
         self.list_view = ListView::new();
@@ -31,7 +31,7 @@ impl DeltaView {
         }
     }
 
-    pub fn repo_deltas(self: &Self) -> &Option<RepoDeltas> {
+    pub fn repo_deltas(self: &Self) -> &Option<RepoBranchDeltas> {
         &self.repo_deltas
     }
 

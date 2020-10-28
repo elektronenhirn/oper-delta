@@ -7,18 +7,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
-#[derive(Clone)]
-pub struct RepoDeltas {
-    pub repo: Arc<Repo>,
-    pub deltas: Vec<BranchDelta>,
+/// representation of a local git repository
+pub struct Repo {
+    pub abs_path: PathBuf,
+    pub rel_path: String,
+    pub description: String,
 }
 
-#[derive(Clone, Debug)]
-pub struct BranchDelta {
-    pub branch_name: String,
-    pub delta: Delta,
-}
-
+// a qualitative difference between two branches
 #[derive(Clone, Debug, PartialEq)]
 pub enum Delta {
     ConsolidatedBySameCommit,
@@ -29,10 +25,16 @@ pub enum Delta {
     BranchNotFound,
 }
 
-impl fmt::Display for Delta {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
+#[derive(Clone, Debug)]
+pub struct BranchDelta {
+    pub branch_name: String,
+    pub delta: Delta,
+}
+
+#[derive(Clone)]
+pub struct RepoBranchDeltas {
+    pub repo: Arc<Repo>,
+    pub deltas: Vec<BranchDelta>,
 }
 
 pub struct Filter {
@@ -44,11 +46,18 @@ pub struct Filter {
     pub include_branch_not_found: bool,
 }
 
+impl fmt::Display for Delta {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 pub fn create_model(
     repos: Vec<Arc<Repo>>,
     branches: Vec<&str>,
     filter: Filter,
-) -> Result<Vec<RepoDeltas>, git2::Error> {
+) -> Result<Vec<RepoBranchDeltas>, git2::Error> {
+    // setup progress bar
     let progress = MultiProgress::new();
     let progress_bars = (0..rayon::current_num_threads())
         .enumerate()
@@ -67,12 +76,12 @@ pub fn create_model(
             .template(" {spinner:.bold.cyan}  Scanned {pos} of {len} repositories"),
     );
     let overall_progress = progress.add(overall_progress);
-
     thread::spawn(move || {
         progress.join_and_clear().unwrap();
     });
 
-    let repo_deltas: Vec<RepoDeltas> = repos
+    //now create the model
+    let repo_branch_deltas: Vec<RepoBranchDeltas> = repos
         .par_iter()
         .map(move |repo| {
             let progress_bar = &progress_bars[rayon::current_thread_index()?];
@@ -89,7 +98,7 @@ pub fn create_model(
                 progress_bar.set_message("Idle");
             };
 
-            calc_repo_deltas(repo, &branches, &filter).map_or_else(
+            calc_branch_deltas_for_a_single_repo(repo, &branches, &filter).map_or_else(
                 |e| {
                     progress_error("Failed to open", &e);
                     None
@@ -104,14 +113,14 @@ pub fn create_model(
         .filter_map(|x| x)
         .collect();
 
-    Ok(repo_deltas)
+    Ok(repo_branch_deltas)
 }
 
-fn calc_repo_deltas(
+fn calc_branch_deltas_for_a_single_repo(
     repo: &std::sync::Arc<Repo>,
     branches: &Vec<&str>,
     filter: &Filter,
-) -> Result<Option<RepoDeltas>, git2::Error> {
+) -> Result<Option<RepoBranchDeltas>, git2::Error> {
     let git_repo = Repository::open(&repo.abs_path)?;
 
     let deltas = branches
@@ -187,7 +196,7 @@ fn calc_repo_deltas(
     };
 
     if include_repo {
-        Ok(Some(RepoDeltas {
+        Ok(Some(RepoBranchDeltas {
             repo: repo.clone(),
             deltas,
         }))
@@ -270,13 +279,6 @@ fn fast_forwardable(git_repo: &Repository, branch: &Branch) -> bool {
     }
 
     false
-}
-
-/// representation of a local git repository
-pub struct Repo {
-    pub abs_path: PathBuf,
-    pub rel_path: String,
-    pub description: String,
 }
 
 impl Repo {
