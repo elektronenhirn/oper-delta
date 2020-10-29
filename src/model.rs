@@ -4,6 +4,7 @@ use indicatif::{MultiProgress, ParallelProgressIterator, ProgressBar, ProgressSt
 use rayon::prelude::*;
 use std::fmt;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 use std::thread;
 
@@ -123,6 +124,12 @@ fn calc_branch_deltas_for_a_single_repo(
 ) -> Result<Option<RepoBranchDeltas>, git2::Error> {
     let git_repo = Repository::open(&repo.abs_path)?;
 
+    let head_as_obj = git_repo
+        .head()
+        .expect("No HEAD for git repo")
+        .peel(git2::ObjectType::Commit)
+        .unwrap();
+
     let deltas = branches
         .iter()
         .filter_map(|branch_name| {
@@ -137,13 +144,13 @@ fn calc_branch_deltas_for_a_single_repo(
             let delta = match branch {
                 Ok(branch) => {
                     let mut delta = Delta::NotConsolidated;
-                    if consolidated_by_same_commit(git_repo_ref, &branch) {
+                    if consolidated_by_same_commit(&head_as_obj, &branch) {
                         delta = Delta::ConsolidatedBySameCommit;
-                    } else if consolidated_by_merge(git_repo_ref, &branch) {
+                    } else if consolidated_by_merge(git_repo_ref, &head_as_obj, &branch) {
                         delta = Delta::ConsolidatedByMergeCommit;
                     } else if consolidated_by_equal_content(git_repo_ref, &branch) {
                         delta = Delta::ConsolidatedByEqualContent;
-                    } else if fast_forwardable(git_repo_ref, &branch) {
+                    } else if fast_forwardable(&repo, branch_name) {
                         delta = Delta::NotConsolidatedButFastForwardable;
                     }
                     delta
@@ -205,18 +212,16 @@ fn calc_branch_deltas_for_a_single_repo(
     }
 }
 
-fn consolidated_by_same_commit(git_repo: &Repository, branch: &Branch) -> bool {
-    let head_as_obj = git_repo
-        .head()
-        .expect("No HEAD for git repo")
-        .peel(git2::ObjectType::Commit)
-        .unwrap();
-
+fn consolidated_by_same_commit(head_as_obj: &git2::Object, branch: &Branch) -> bool {
     let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
     head_as_obj.id() == branch_as_obj.id()
 }
 
-fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
+fn consolidated_by_merge(
+    git_repo: &Repository,
+    head_as_obj: &git2::Object,
+    branch: &Branch,
+) -> bool {
     //walk down the history of "branch" and probe for a commit which has HEAD as a parent
     let branch_as_obj = branch.get().peel(git2::ObjectType::Commit).unwrap();
     let mut revwalk = git_repo.revwalk().expect("Failed to create revwalk");
@@ -226,12 +231,6 @@ fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
         .expect("branch not found in revwalk");
     revwalk.simplify_first_parent();
     revwalk.set_sorting(git2::Sort::TIME);
-
-    let head_as_obj = git_repo
-        .head()
-        .expect("No HEAD for git repo")
-        .peel(git2::ObjectType::Commit)
-        .unwrap();
 
     for commit_id in revwalk {
         let commit = commit_id
@@ -246,39 +245,36 @@ fn consolidated_by_merge(git_repo: &Repository, branch: &Branch) -> bool {
 }
 
 fn consolidated_by_equal_content(git_repo: &Repository, branch: &Branch) -> bool {
-    let head_as_obj = git_repo
+    let head_as_tree_obj = git_repo
         .head()
         .expect("No HEAD for git repo")
         .peel(git2::ObjectType::Tree)
         .unwrap();
-    let branch_as_obj = branch.get().peel(git2::ObjectType::Tree).unwrap();
+    let branch_as_tree_obj = branch.get().peel(git2::ObjectType::Tree).unwrap();
 
     git_repo
-        .diff_tree_to_tree(head_as_obj.as_tree(), branch_as_obj.as_tree(), None)
+        .diff_tree_to_tree(
+            head_as_tree_obj.as_tree(),
+            branch_as_tree_obj.as_tree(),
+            None,
+        )
         .unwrap()
         .deltas()
         .count()
         == 0
 }
 
-fn fast_forwardable(git_repo: &Repository, branch: &Branch) -> bool {
-    //our "branch" can be ff if the history of HEAD contains the tip of "branch"
+fn fast_forwardable(repo: &Arc<Repo>, branch_name: &str) -> bool {
+    let exit_code = Command::new("git")
+        .current_dir(&repo.abs_path)
+        .arg("merge-base")
+        .arg("--is-ancestor")
+        .arg("HEAD")
+        .arg(branch_name)
+        .status()
+        .expect("Failed to execute git-show command. git not installed?");
 
-    let mut revwalk = git_repo.revwalk().expect("Failed to create revwalk");
-
-    revwalk.push_head().expect("No head found");
-    revwalk.simplify_first_parent();
-    revwalk.set_sorting(git2::Sort::TIME);
-
-    let branch_as_obj = branch.get().peel(git2::ObjectType::Tree).unwrap();
-
-    for commit_id in revwalk {
-        if commit_id.unwrap() == branch_as_obj.id() {
-            return true;
-        }
-    }
-
-    false
+    exit_code.success()
 }
 
 impl Repo {
