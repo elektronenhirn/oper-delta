@@ -29,6 +29,13 @@ args = ""
 key = "t"
 executable = "gnome-terminal"
 args = "-- tig --all"
+
+# Open a terminal window in the folder of the selected folder
+[[custom_command]]
+key = "c"
+executable = "gnome-terminal"
+args = ""
+
 "#;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
