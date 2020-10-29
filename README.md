@@ -1,6 +1,8 @@
 # Scope
 oper-delta is branch diffing tool for git repositories managed by google's [git-repo tool](https://source.android.com/setup/develop/repo).
 
+It was developed out of the need to maintain develop branches while main branches continously evolve.
+
 It can calculate the qualitative delta between the current head and one or more given target branches across all repo managed by git-repo.
 
 # Installation
@@ -38,11 +40,24 @@ You can run external executables on the currently selected commit. Running _gitk
 Here we define a custom command to run _git show_ in a new terminal window:
 
 ```
-# Execute git show in a seperate terminal window
+# Start gitk whenever 'i' is pressed, the current selected commit
+# will be selected in gitk then.
 [[custom_command]]
-key = "d"
+key = "i"
+executable = "gitk"
+args = ""
+
+# Execute tig in a seperate terminal window
+[[custom_command]]
+key = "t"
 executable = "gnome-terminal"
-args = "-- git log"
+args = "-- tig --all"
+
+# Open a terminal window in the folder of the selected folder
+[[custom_command]]
+key = "c"
+executable = "gnome-terminal"
+args = ""
 ```
 
 #### Remarks
