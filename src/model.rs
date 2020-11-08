@@ -30,6 +30,8 @@ pub enum Delta {
 pub struct BranchDelta {
     pub branch_name: String,
     pub delta: Delta,
+    pub distance_head_to_merge_base: Result<u32, String>,
+    pub distance_target_to_merge_base: Result<u32, String>,
 }
 
 #[derive(Clone)]
@@ -161,6 +163,11 @@ fn calc_branch_deltas_for_a_single_repo(
             Some(BranchDelta {
                 branch_name: String::from(*branch_name),
                 delta,
+                distance_head_to_merge_base: calc_distance_head_to_merge_base(&repo, branch_name),
+                distance_target_to_merge_base: calc_distance_target_to_merge_base(
+                    &repo,
+                    branch_name,
+                ),
             })
         })
         .collect::<Vec<_>>();
@@ -209,6 +216,48 @@ fn calc_branch_deltas_for_a_single_repo(
         }))
     } else {
         Ok(None)
+    }
+}
+
+fn calc_distance_head_to_merge_base(repo: &Arc<Repo>, branch_name: &str) -> Result<u32, String> {
+    let output = Command::new("sh")
+        .current_dir(&repo.abs_path)
+        .arg("-c")
+        .arg(format!(
+            "git rev-list --count `git merge-base HEAD {}`..HEAD",
+            branch_name
+        ))
+        .output();
+
+    parse_git_numeric_output(output)
+}
+
+fn calc_distance_target_to_merge_base(repo: &Arc<Repo>, branch_name: &str) -> Result<u32, String> {
+    let output = Command::new("sh")
+        .current_dir(&repo.abs_path)
+        .arg("-c")
+        .arg(format!(
+            "git rev-list --count `git merge-base HEAD {}`..{}",
+            branch_name, branch_name
+        ))
+        .output();
+
+    parse_git_numeric_output(output)
+}
+
+fn parse_git_numeric_output(
+    output: std::result::Result<std::process::Output, std::io::Error>,
+) -> Result<u32, String> {
+    match output {
+        Ok(v) => {
+            let stdout = String::from_utf8_lossy(&v.stdout).trim().to_string();
+            stdout.parse::<u32>().or(Err(format!(
+                "Parsing git output failed: {} {}",
+                stdout,
+                String::from_utf8_lossy(&v.stderr)
+            )))
+        }
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -265,16 +314,15 @@ fn consolidated_by_equal_content(git_repo: &Repository, branch: &Branch) -> bool
 }
 
 fn fast_forwardable(repo: &Arc<Repo>, branch_name: &str) -> bool {
-    let exit_code = Command::new("git")
+    Command::new("git")
         .current_dir(&repo.abs_path)
         .arg("merge-base")
         .arg("--is-ancestor")
         .arg("HEAD")
         .arg(branch_name)
         .status()
-        .expect("Failed to execute git-show command. git not installed?");
-
-    exit_code.success()
+        .expect("Failed to execute git-show command. git not installed?")
+        .success()
 }
 
 impl Repo {
