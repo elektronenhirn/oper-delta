@@ -1,8 +1,10 @@
+use crate::utils::repos_paths_from;
 use console::style;
 use git2::{Branch, BranchType, Repository};
 use indicatif::{MultiProgress, ParallelProgressIterator, ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::fmt;
+use std::fs::File;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -47,6 +49,7 @@ pub struct Filter {
     pub include_non_consolidated: bool,
     pub include_non_consolidated_but_ff_able: bool,
     pub include_branch_not_found: bool,
+    pub repo_ignore_list: Option<String>,
 }
 
 impl fmt::Display for Delta {
@@ -59,7 +62,7 @@ pub fn create_model(
     repos: Vec<Arc<Repo>>,
     branches: Vec<&str>,
     filter: Filter,
-) -> Result<Vec<RepoBranchDeltas>, git2::Error> {
+) -> Result<Vec<RepoBranchDeltas>, std::io::Error> {
     // setup progress bar
     let progress = MultiProgress::new();
     let progress_bars = (0..rayon::current_num_threads())
@@ -83,6 +86,17 @@ pub fn create_model(
         progress.join_and_clear().unwrap();
     });
 
+    let mut ignore_list = Vec::<String>::new();
+    if let Some(ref repo_ignore_list_path) = filter.repo_ignore_list {
+        match File::open(repo_ignore_list_path) {
+            Ok(file) => ignore_list = repos_paths_from(&file)?,
+            Err(e) => {
+                eprintln!("repo ignore list not found: {}", repo_ignore_list_path);
+                return Err(e);
+            }
+        }
+    }
+
     //now create the model
     let repo_branch_deltas: Vec<RepoBranchDeltas> = repos
         .par_iter()
@@ -100,6 +114,10 @@ pub fn create_model(
                 progress_bar.inc(1);
                 progress_bar.set_message("Idle");
             };
+
+            if ignore_list.contains(&repo.rel_path) {
+                return None;
+            }
 
             calc_branch_deltas_for_a_single_repo(repo, &branches, &filter).map_or_else(
                 |e| {

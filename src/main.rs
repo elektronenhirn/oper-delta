@@ -17,15 +17,12 @@ mod utils;
 mod views;
 
 use clap::{App, Arg};
-use model::{create_model, Filter, Repo};
-use std::convert::Into;
+use model::{create_model, Filter};
 use std::env;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::sync::Arc;
-use utils::{find_project_file, find_repo_base_folder};
+use utils::{find_project_file, repos_from};
 
 const MAX_NUMBER_OF_THREADS: usize = 18; //tests on a 36 core INTEL Xeon showed that parsing becomes slower again if more than 18 threads are used
 
@@ -42,6 +39,13 @@ fn main() -> Result<(), String> {
                 .value_name("cwd")
                 .help("change working directory (mostly useful for testing)")
                 .default_value(original_cwd.to_str().unwrap())
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("repo-ignore-list")
+                .long("repo-ignore-list")
+                .value_name("path")
+                .help("path to file which contains list of repos to ignore")
                 .takes_value(true),
         )
         .arg(
@@ -97,6 +101,7 @@ fn main() -> Result<(), String> {
         include_non_consolidated_but_ff_able: !matches
             .is_present("hide-non-consolidated-but-ff-able"),
         include_branch_not_found: !matches.is_present("hide-branch-not-found"),
+        repo_ignore_list: matches.value_of("repo-ignore-list").map(|x| x.to_string()),
     };
 
     do_main(branches, cwd, filter).or_else(|e| Err(e.to_string().into()))
@@ -121,24 +126,4 @@ fn do_main(branches: Vec<&str>, cwd: &Path, filter: Filter) -> Result<(), io::Er
     ui::show(diff, &config, nr_of_total_repos);
 
     Ok(())
-}
-
-fn repos_from(
-    project_file: &std::fs::File,
-    include_manifest: bool,
-) -> Result<Vec<Arc<Repo>>, io::Error> {
-    let mut repos = Vec::new();
-
-    let base_folder = find_repo_base_folder()?;
-    for project in BufReader::new(project_file).lines() {
-        let rel_path = project.expect("project.list read error");
-        repos.push(Arc::new(Repo::from(base_folder.join(&rel_path), rel_path)));
-    }
-
-    if include_manifest {
-        let rel_path = String::from(".repo/manifests");
-        repos.push(Arc::new(Repo::from(base_folder.join(&rel_path), rel_path)));
-    }
-
-    Ok(repos)
 }

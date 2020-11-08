@@ -1,9 +1,11 @@
-use crate::model::RepoBranchDeltas;
+use crate::model::{Repo, RepoBranchDeltas};
 use std::env;
 use std::fs;
 use std::io;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 
 /// returns a path pointing to he project.list file in
 /// the .repo folder, or an io::Error in case the file
@@ -62,4 +64,39 @@ pub fn execute_on_repo(
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
+}
+
+/// parses a flat list of local repo paths
+/// and creates a vector of Repos objects from it
+pub fn repos_from(
+    project_file: &std::fs::File,
+    include_manifest: bool,
+) -> Result<Vec<Arc<Repo>>, io::Error> {
+    let mut repos = Vec::new();
+
+    let base_folder = find_repo_base_folder()?;
+    for project in BufReader::new(project_file).lines() {
+        let rel_path = project.expect("project.list read error");
+        repos.push(Arc::new(Repo::from(base_folder.join(&rel_path), rel_path)));
+    }
+
+    if include_manifest {
+        let rel_path = String::from(".repo/manifests");
+        repos.push(Arc::new(Repo::from(base_folder.join(&rel_path), rel_path)));
+    }
+
+    Ok(repos)
+}
+
+/// parses a flat list of local repo paths
+/// and creates a vector of Strings of it
+pub fn repos_paths_from(project_file: &std::fs::File) -> Result<Vec<String>, io::Error> {
+    let mut repos = Vec::new();
+
+    for project in BufReader::new(project_file).lines() {
+        let rel_path = project.expect("project.list read error");
+        repos.push(rel_path);
+    }
+
+    Ok(repos)
 }
