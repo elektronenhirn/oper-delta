@@ -11,6 +11,7 @@ extern crate toml;
 
 mod config;
 mod model;
+mod report;
 mod styles;
 mod ui;
 mod utils;
@@ -46,6 +47,13 @@ fn main() -> Result<(), String> {
                 .long("repo-ignore-list")
                 .value_name("path")
                 .help("path to file which contains list of repos to ignore")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("report")
+                .long("report")
+                .value_name("file")
+                .help("write a report to a new file given by <path> - file format will be csv")
                 .takes_value(true),
         )
         .arg(
@@ -103,11 +111,17 @@ fn main() -> Result<(), String> {
         include_branch_not_found: !matches.is_present("hide-branch-not-found"),
         repo_ignore_list: matches.value_of("repo-ignore-list").map(|x| x.to_string()),
     };
+    let report_file_path = matches.value_of("report").map(|x| x.to_string());
 
-    do_main(branches, cwd, filter).or_else(|e| Err(e.to_string().into()))
+    do_main(branches, cwd, filter, report_file_path).or_else(|e| Err(e.to_string().into()))
 }
 
-fn do_main(branches: Vec<&str>, cwd: &Path, filter: Filter) -> Result<(), io::Error> {
+fn do_main(
+    branches: Vec<&str>,
+    cwd: &Path,
+    filter: Filter,
+    report_file_path: Option<String>,
+) -> Result<(), io::Error> {
     let config = config::read();
 
     env::set_current_dir(cwd)?;
@@ -120,10 +134,16 @@ fn do_main(branches: Vec<&str>, cwd: &Path, filter: Filter) -> Result<(), io::Er
     let repos = repos_from(&project_file, false)?;
     let nr_of_total_repos = repos.len();
 
-    let diff = create_model(repos, branches, filter)
+    let model = create_model(repos, branches, filter)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
-    ui::show(diff, &config, nr_of_total_repos);
+    match report_file_path {
+        None => ui::show(model, &config, nr_of_total_repos),
+        Some(file) => {
+            println!("Skipping UI - generating report...");
+            report::generate(model, file)?
+        }
+    }
 
     Ok(())
 }
