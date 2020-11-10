@@ -180,12 +180,15 @@ fn calc_branch_deltas_for_a_single_repo(
 
             Some(BranchDelta {
                 branch_name: String::from(*branch_name),
-                delta,
-                distance_head_to_merge_base: calc_distance_head_to_merge_base(&repo, branch_name),
-                distance_target_to_merge_base: calc_distance_target_to_merge_base(
-                    &repo,
-                    branch_name,
-                ),
+                delta: delta.clone(),
+                distance_head_to_merge_base:  match delta {
+                    Delta::BranchNotFound => Ok(0),
+                    _ => calc_distance_head_to_merge_base(&repo, branch_name),
+                },
+                distance_target_to_merge_base:  match delta {
+                    Delta::BranchNotFound => Ok(0),
+                    _ => calc_distance_target_to_merge_base(&repo, branch_name),
+                },
             })
         })
         .collect::<Vec<_>>();
