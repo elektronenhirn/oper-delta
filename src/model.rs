@@ -139,7 +139,7 @@ pub fn create_model(
 
 fn calc_branch_deltas_for_a_single_repo(
     repo: &std::sync::Arc<Repo>,
-    branches: &Vec<&str>,
+    branches: &[&str],
     filter: &Filter,
 ) -> Result<Option<RepoBranchDeltas>, git2::Error> {
     let git_repo = Repository::open(&repo.abs_path)?;

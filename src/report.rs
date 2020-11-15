@@ -25,9 +25,9 @@ pub fn generate(model: Vec<RepoBranchDeltas>, output_file_path: &str) -> Result<
         Some("csv") => generate_csv(model, path),
         Some("ods") => generate_ods(model, path),
         Some("xlsx") => generate_xlsx(model, path),
-        _ => {
-            Err(anyhow!("Couldn't derive report format from filename. Supported endings are: .csv, .ods, .xlsx"))
-        }
+        _ => Err(anyhow!(
+            "Couldn't derive report format from filename. Supported endings are: .csv, .ods, .xlsx"
+        )),
     }
 }
 

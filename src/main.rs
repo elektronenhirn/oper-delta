@@ -18,7 +18,7 @@ mod ui;
 mod utils;
 mod views;
 
-use anyhow::{Result};
+use anyhow::Result;
 use clap::{App, Arg};
 use model::{create_model, Filter};
 use std::env;

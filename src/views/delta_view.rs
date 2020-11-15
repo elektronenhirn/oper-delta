@@ -17,20 +17,20 @@ impl DeltaView {
         }
     }
 
-    fn reset (self: &mut Self) {
+    fn reset(&mut self) {
         self.list_view = ListView::new();
     }
 
-    fn append_string(self: &mut Self, s: String) {
+    fn append_string(&mut self, s: String) {
         self.list_view.insert_string(s);
     }
 
-    fn append_colorful_string(self: &mut Self, s: String, c: ColorStyle) {
+    fn append_colorful_string(&mut self, s: String, c: ColorStyle) {
         self.list_view.insert_colorful_string(s, c);
     }
 
     #[rustfmt::skip]
-    pub fn set_repo_deltas(self: &mut Self, repo_deltas: &RepoBranchDeltas) {
+    pub fn set_repo_deltas(&mut self, repo_deltas: &RepoBranchDeltas) {
         self.repo_deltas = Some(repo_deltas.clone());
 
         self.reset();
@@ -78,7 +78,7 @@ impl DeltaView {
 
     }
 
-    pub fn repo_deltas(self: &Self) -> &Option<RepoBranchDeltas> {
+    pub fn repo_deltas(&self) -> &Option<RepoBranchDeltas> {
         &self.repo_deltas
     }
 

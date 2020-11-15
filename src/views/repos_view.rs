@@ -99,7 +99,7 @@ impl ReposView {
             .with_required_size(|_model, req| cursive::Vec2::new(req.x, 1))
     }
 
-    pub fn update_status_bar(self: &mut Self, index: i32) {
+    pub fn update_status_bar(&mut self, index: i32) {
         (*self.status_bar_model).replace(format!(
             "Repo {} of {} (unfiltered: {})",
             index + 1,
@@ -108,7 +108,7 @@ impl ReposView {
         ));
     }
 
-    pub fn show_error(self: &mut Self, context: &str, error: &std::io::Error) {
+    pub fn show_error(&mut self, context: &str, error: &std::io::Error) {
         (*self.status_bar_model).replace(format!("{}: {}", context, error));
     }
 }
