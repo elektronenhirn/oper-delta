@@ -7,6 +7,7 @@ extern crate num_cpus;
 #[macro_use]
 extern crate lazy_static;
 extern crate serde;
+extern crate spsheet;
 extern crate toml;
 
 mod config;
@@ -17,11 +18,11 @@ mod ui;
 mod utils;
 mod views;
 
+use anyhow::{Result};
 use clap::{App, Arg};
 use model::{create_model, Filter};
 use std::env;
 use std::fs::File;
-use std::io;
 use std::path::Path;
 use utils::{find_project_file, repos_from};
 
@@ -51,10 +52,10 @@ fn main() -> Result<(), String> {
         )
         .arg(
             Arg::with_name("report")
-                .long("report")
-                .value_name("file")
-                .help("write a report to a new file given by <path> - file format will be csv")
-                .takes_value(true),
+            .long("report")
+            .value_name("file")
+            .help("writes a report to a file given by <path> - supported formats: .csv, .ods, .xlsx")
+            .takes_value(true)
         )
         .arg(
             Arg::with_name("branch")
@@ -113,7 +114,7 @@ fn main() -> Result<(), String> {
     };
     let report_file_path = matches.value_of("report").map(|x| x.to_string());
 
-    do_main(branches, cwd, filter, report_file_path).or_else(|e| Err(e.to_string().into()))
+    do_main(branches, cwd, filter, report_file_path).map_err(|e| e.to_string())
 }
 
 fn do_main(
@@ -121,7 +122,7 @@ fn do_main(
     cwd: &Path,
     filter: Filter,
     report_file_path: Option<String>,
-) -> Result<(), io::Error> {
+) -> Result<()> {
     let config = config::read();
 
     env::set_current_dir(cwd)?;
@@ -134,14 +135,14 @@ fn do_main(
     let repos = repos_from(&project_file, false)?;
     let nr_of_total_repos = repos.len();
 
-    let model = create_model(repos, branches, filter)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let model = create_model(repos, branches, filter)?;
 
+    //TUI or report?
     match report_file_path {
         None => ui::show(model, &config, nr_of_total_repos),
         Some(file) => {
             println!("Skipping UI - generating report...");
-            report::generate(model, file)?
+            report::generate(model, &file)?
         }
     }
 

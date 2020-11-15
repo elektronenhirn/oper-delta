@@ -1,46 +1,177 @@
 use crate::model::{Delta, RepoBranchDeltas};
-use std::io;
+use anyhow::{anyhow, Result};
+use std::fs::File;
 use std::path::Path;
 use std::vec::Vec;
 
-pub fn generate(model: Vec<RepoBranchDeltas>, output_file_path: String) -> Result<(), io::Error> {
-    if model.len() == 0 {
-        return Ok(());
+use spsheet::ods;
+use spsheet::xlsx;
+use spsheet::{Book, Cell, Sheet};
+
+pub fn generate(model: Vec<RepoBranchDeltas>, output_file_path: &str) -> Result<()> {
+    if model.is_empty() {
+        return Err(anyhow!("No (unfiltered) repos left to write report about"));
     }
 
-    let mut wtr = csv::Writer::from_path(Path::new(&output_file_path))?;
-
-    wtr.write_field("Local Path of Repo")?;
-    for branch in &model[0].deltas {
-        wtr.write_field(format!("{} Branch: Delta", &branch.branch_name))?;
-        wtr.write_field(format!(
-            "{} Branch: Distance of HEAD to merge-base",
-            &branch.branch_name
-        ))?;
-        wtr.write_field(format!(
-            "{} Branch: Distance of {} to merge-base",
-            &branch.branch_name, &branch.branch_name
-        ))?;
+    let path = Path::new(output_file_path);
+    let extension = path.extension().and_then(|s| s.to_str());
+    if extension.is_none() {
+        return Err(anyhow!(
+            "Couldn't derive report format from filename. Supported endings are: .csv, .ods, .xlsx"
+        ));
     }
-    wtr.write_record(None::<&[u8]>)?;
 
-    for repo in &model {
-        wtr.write_field(&repo.repo.rel_path)?;
-        for branch in &repo.deltas {
-            wtr.write_field(&delta_to_string(&branch.delta))?;
-            wtr.write_field(&distance_to_string(&branch.distance_head_to_merge_base))?;
-            wtr.write_field(&distance_to_string(&branch.distance_target_to_merge_base))?;
+    match extension {
+        Some("csv") => generate_csv(model, path),
+        Some("ods") => generate_ods(model, path),
+        Some("xlsx") => generate_xlsx(model, path),
+        _ => {
+            Err(anyhow!("Couldn't derive report format from filename. Supported endings are: .csv, .ods, .xlsx"))
         }
-        wtr.write_record(None::<&[u8]>)?;
+    }
+}
+
+trait SpreadSheetBuilder {
+    fn add_cell(&mut self, cell: String) -> Result<()>;
+    fn finish_row(&mut self) -> Result<()>;
+}
+
+struct CommaSeperatedSpreadsheet {
+    writer: csv::Writer<File>,
+}
+
+impl CommaSeperatedSpreadsheet {
+    pub fn new(output_file_path: &Path) -> Result<Self> {
+        Ok(CommaSeperatedSpreadsheet {
+            writer: csv::Writer::from_path(&output_file_path)?,
+        })
     }
 
-    wtr.flush()?;
+    pub fn write_to_disk(&mut self) -> Result<()> {
+        Ok(self.writer.flush()?)
+    }
+}
+
+impl SpreadSheetBuilder for CommaSeperatedSpreadsheet {
+    fn add_cell(&mut self, cell: String) -> Result<()> {
+        Ok(self.writer.write_field(cell)?)
+    }
+
+    fn finish_row(&mut self) -> Result<()> {
+        Ok(self.writer.write_record(None::<&[u8]>)?)
+    }
+}
+
+struct OdsXlsxSpreadsheet {
+    sheet: Sheet,
+    current_row: usize,
+    current_column: usize,
+}
+
+impl OdsXlsxSpreadsheet {
+    pub fn new() -> Result<Self> {
+        Ok(OdsXlsxSpreadsheet {
+            sheet: Sheet::new("oper-delta report"),
+            current_row: 0,
+            current_column: 0,
+        })
+    }
+}
+
+impl SpreadSheetBuilder for OdsXlsxSpreadsheet {
+    fn add_cell(&mut self, cell: String) -> Result<()> {
+        self.sheet
+            .add_cell(Cell::str(cell), self.current_row, self.current_column);
+        self.current_column += 1;
+        Ok(())
+    }
+
+    fn finish_row(&mut self) -> Result<()> {
+        self.current_row += 1;
+        self.current_column = 0;
+        Ok(())
+    }
+}
+
+fn generate_ods(model: Vec<RepoBranchDeltas>, output_file_path: &Path) -> Result<()> {
+    let mut spreadsheet = OdsXlsxSpreadsheet::new()?;
+
+    model_into_spreadsheet(&model, &mut spreadsheet)?;
+
+    let mut book = Book::new();
+    book.add_sheet(spreadsheet.sheet);
+    ods::write(&book, output_file_path)
+        .map_err(|e| anyhow!("Failed to write .ods file: {:?}", e))?;
+
+    println!(
+        "Wrote {} records in Open Document Format to {}",
+        model.len(),
+        output_file_path.display()
+    );
+    Ok(())
+}
+
+fn generate_xlsx(model: Vec<RepoBranchDeltas>, output_file_path: &Path) -> Result<()> {
+    let mut spreadsheet = OdsXlsxSpreadsheet::new()?;
+
+    model_into_spreadsheet(&model, &mut spreadsheet)?;
+
+    let mut book = Book::new();
+    book.add_sheet(spreadsheet.sheet);
+    xlsx::write(&book, output_file_path)
+        .map_err(|e| anyhow!("Failed to write .xlsx file: {:?}", e))?;
+
+    println!(
+        "Wrote {} records in MS Excel format to {}",
+        model.len(),
+        output_file_path.display()
+    );
+    Ok(())
+}
+
+fn generate_csv(model: Vec<RepoBranchDeltas>, output_file_path: &Path) -> Result<()> {
+    let mut spreadsheet = CommaSeperatedSpreadsheet::new(output_file_path)?;
+
+    model_into_spreadsheet(&model, &mut spreadsheet)?;
+
+    spreadsheet.write_to_disk()?;
 
     println!(
         "Wrote {} records as comma-separated-values to {}",
         model.len(),
-        output_file_path
+        output_file_path.display()
     );
+    Ok(())
+}
+
+fn model_into_spreadsheet(
+    model: &[RepoBranchDeltas],
+    builder: &mut dyn SpreadSheetBuilder,
+) -> Result<()> {
+    builder.add_cell("Local Path of Repo".to_string())?;
+    for branch in &model[0].deltas {
+        builder.add_cell(format!("{} Branch: Delta", &branch.branch_name))?;
+        builder.add_cell(format!(
+            "{} Branch: Distance of HEAD to merge-base",
+            &branch.branch_name
+        ))?;
+        builder.add_cell(format!(
+            "{} Branch: Distance of {} to merge-base",
+            &branch.branch_name, &branch.branch_name
+        ))?;
+    }
+    builder.finish_row()?;
+
+    for repo in model {
+        builder.add_cell(repo.repo.rel_path.clone())?;
+        for branch in &repo.deltas {
+            builder.add_cell(delta_to_string(&branch.delta))?;
+            builder.add_cell(distance_to_string(&branch.distance_head_to_merge_base))?;
+            builder.add_cell(distance_to_string(&branch.distance_target_to_merge_base))?;
+        }
+        builder.finish_row()?;
+    }
+
     Ok(())
 }
 
