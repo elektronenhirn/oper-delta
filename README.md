@@ -1,9 +1,11 @@
 # Scope
-oper-delta is branch diffing tool for git repositories managed by google's [git-repo tool](https://source.android.com/setup/develop/repo).
+`oper-delta` is branch diffing tool for git repositories managed by google's [git-repo tool](https://source.android.com/setup/develop/repo).
 
 It was developed out of the need to maintain develop branches while main branches continously evolve.
 
 It can calculate the qualitative delta between the current head and one or more given target branches across all repo managed by git-repo.
+
+![Screenshot](./screenshot.png)
 
 # Installation
 
@@ -28,7 +30,6 @@ cargo install oper-delta
 ```
 
 # Usage
-
 
 ## Custom Commands
 
