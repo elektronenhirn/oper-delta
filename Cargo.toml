@@ -1,6 +1,6 @@
 [package]
 name = "oper-delta"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Florian Bramer <elektronenhirn@gmail.com>"]
 description = "Command line tool to diff branches on multiple git repositories managed by google's git-repo tool"
 edition = "2018"
