@@ -11,6 +11,7 @@ extern crate spsheet;
 extern crate toml;
 
 mod config;
+mod manifest;
 mod model;
 mod report;
 mod styles;
@@ -95,6 +96,13 @@ fn main() -> Result<(), String> {
                 .long("hide-branch-not-found")
                 .help("hide repositories where the given <branch> couldn't been found"),
         )
+        .arg(
+            Arg::with_name("manifest")
+                .short("m")
+                .long("manifest")
+                .takes_value(true)
+                .help("filter list of repositories by the given manifest"),
+        )
         .get_matches();
 
     let branches = matches.values_of("branch").unwrap().collect::<Vec<_>>();
@@ -113,8 +121,9 @@ fn main() -> Result<(), String> {
         repo_ignore_list: matches.value_of("repo-ignore-list").map(|x| x.to_string()),
     };
     let report_file_path = matches.value_of("report").map(|x| x.to_string());
+    let filter_by_manifest = matches.value_of("manifest");
 
-    do_main(branches, cwd, filter, report_file_path).map_err(|e| e.to_string())
+    do_main(branches, cwd, filter, report_file_path, filter_by_manifest).map_err(|e| e.to_string())
 }
 
 fn do_main(
@@ -122,6 +131,7 @@ fn do_main(
     cwd: &Path,
     filter: Filter,
     report_file_path: Option<String>,
+    filter_by_manifest: Option<&str>
 ) -> Result<()> {
     let config = config::read();
 
@@ -132,7 +142,11 @@ fn do_main(
         .unwrap();
 
     let project_file = File::open(find_project_file()?)?;
-    let repos = repos_from(&project_file, false)?;
+    let mut repos = repos_from(&project_file, false)?;
+    if let Some(manifest_file) = filter_by_manifest {
+        let manifest = manifest::parse(Path::new(&manifest_file))?;
+        repos.retain(|repo| manifest.projects.iter().find(|&p| repo.rel_path == p.path ).is_some());
+    }
     let nr_of_total_repos = repos.len();
 
     let model = create_model(repos, branches, filter)?;

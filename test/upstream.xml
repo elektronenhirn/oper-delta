@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf8"?>
+<manifest>
+
+    <project groups="upstream-project" name="ascgit404.platform.build.blueprint" path="build/blueprint" revision="ba1ea7583953186a1a5519c0cd1087e403ad516f" />
+    <project groups="upstream-project" name="ascgit404.platform.build.kati" path="build/kati" revision="7295712444f9e66fd0f52a298c1c39ccb0194ad4" />
+</manifest>

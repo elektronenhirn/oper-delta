@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf8"?>
+<manifest>
+
+    <project groups="upstream-project-mod" name="ascgit404.platform.frameworks.base" path="frameworks/base" revision="faec4d16d9a99847db591e1b6f580ace0e38ba76" />
+
+</manifest>
