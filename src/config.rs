@@ -17,13 +17,6 @@ const DEFAULT_CONFIG: &str = r#"
 # The args field allows substitution of {} with the ID of the
 # currently selected commit.
 
-# Start gitk whenever 'i' is pressed, the current selected commit
-# will be selected in gitk then.
-[[custom_command]]
-key = "i"
-executable = "gitk"
-args = ""
-
 # Execute tig in a seperate terminal window
 [[custom_command]]
 key = "t"
@@ -132,14 +125,14 @@ fn test_parse_default_config() {
     let mut shall_config = Config::new();
     shall_config.custom_command = vec![
         CustomCommand::new(
-            'i',
-            "gitk".to_string(),
-            Some("--select-commit={}".to_string()),
+            't',
+            "gnome-terminal".to_string(),
+            Some("-- tig --all".to_string()),
         ),
         CustomCommand::new(
-            'd',
+            'c',
             "gnome-terminal".to_string(),
-            Some("-- git show {}".to_string()),
+            Some("".to_string()),
         ),
     ];
 
